@@ -1,14 +1,23 @@
 #include "chess.h"
 
 int main() {
-    Chess chess;
-    // Chess chess("rnbq1rk1/pppn1ppp/4p3/3pP3/1b1P4/2NB1N2/PPP2PPP/R1BQK2R w KQ - 0 1");
+    // Chess chess;
+    Chess chess("8/8/8/8/8/6k1/5p1K/8 w - - 0 1");
     Move& board = chess.board;
 
     // board.generate_legal_moves();
     // for (auto move : board.legal_moves) {
     //     std::cout << move << " ";
     // } std:: cout << std::endl;
+
+    // board.push("a7a6");
+
+    // board.generate_legal_moves();
+    // for (auto move : board.legal_moves) {
+    //     std::cout << move << " ";
+    // } std:: cout << std::endl;
+
+    // board.push("f2f1q");
 
     // std::pair<std::pair<std::string, int>, int> result = chess.analyze(board, 3);
     // std::cout << "Best Move: " << result.first.first << std::endl;
@@ -27,7 +36,7 @@ int main() {
         board.generate_pseudo_legal_moves();
         board.generate_legal_moves();
         std::clock_t start = std::clock();
-        std::pair<std::pair<std::string, int>, int> result = chess.analyze(board, 1);
+        std::pair<std::pair<std::string, int>, int> result = chess.analyze(board, 40);
         double duration = (std::clock() - start) / (double)CLOCKS_PER_SEC;
 
         std::cout << "Best Move: " << result.first.first << std::endl;

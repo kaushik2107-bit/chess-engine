@@ -11,6 +11,7 @@
 class Move {
 public:
     std::unordered_map<char, std::vector<int>> piece_tracker;
+    std::vector<char> square_tracker;
     std::unordered_map<char, uint64_t> bitboard;
     char player;
     std::vector<char> castling_rights;
@@ -22,14 +23,15 @@ public:
     std::vector<std::string> played_moves;
     std::vector<Move> prev_state;
     Move() {}
-    Move(std::unordered_map<char, uint64_t> bitboard, char player, std::vector<char> castling_rights, int en_passant, int halfmove_clock, int fullmove_number, std::unordered_map<char, std::vector<int>> piece_tracker) :
+    Move(std::unordered_map<char, uint64_t> bitboard, char player, std::vector<char> castling_rights, int en_passant, int halfmove_clock, int fullmove_number, std::unordered_map<char, std::vector<int>> piece_tracker, std::vector<char> square_tracker) :
         bitboard(bitboard),
         player(player),
         castling_rights(castling_rights),
         en_passant_square(en_passant),
         halfmove_clock(halfmove_clock),
         fullmove_number(fullmove_number),
-        piece_tracker(piece_tracker) {}
+        piece_tracker(piece_tracker),
+        square_tracker(square_tracker) {}
 
     Move(const Move& other) {
         this->bitboard = other.bitboard;
@@ -39,13 +41,14 @@ public:
         this->halfmove_clock = other.halfmove_clock;
         this->fullmove_number = other.fullmove_number;
         this->piece_tracker = other.piece_tracker;
+        this->square_tracker = other.square_tracker;
         this->prev_state = other.prev_state;
         this->played_moves = other.played_moves;
         this->pseudo_legal_moves = other.pseudo_legal_moves;
         this->legal_moves = other.legal_moves;
     }
 
-    void set_members(std::unordered_map<char, uint64_t> bitboard, char player, std::vector<char> castling_rights, int en_passant, int halfmove_clock, int fullmove_number, std::unordered_map<char, std::vector<int>> piece_tracker) {
+    void set_members(std::unordered_map<char, uint64_t> bitboard, char player, std::vector<char> castling_rights, int en_passant, int halfmove_clock, int fullmove_number, std::unordered_map<char, std::vector<int>> piece_tracker, std::vector<char> square_tracker) {
         this->bitboard = bitboard;
         this->player = player;
         this->castling_rights = castling_rights;
@@ -53,6 +56,7 @@ public:
         this->halfmove_clock = halfmove_clock;
         this->fullmove_number = fullmove_number;
         this->piece_tracker = piece_tracker;
+        this->square_tracker = square_tracker;
     }
 
     // Implement other methods and functionalities here
@@ -179,23 +183,30 @@ public:
         if (move.size() > 4) return false;
         int initial, final; char promotion;
         std::tie(initial, final, promotion) = convert_to_position(move);
-        for (const auto [piece_type, positions]: piece_tracker) {
-            if (std::find(positions.begin(), positions.end(), final) != positions.end()) {
-                return true;
-            }
-        }
+        // Old Code
+        // for (const auto [piece_type, positions]: piece_tracker) {
+        //     if (std::find(positions.begin(), positions.end(), final) != positions.end()) {
+        //         return true;
+        //     }
+        // }
 
+        // Optimized Code
+        if (square_tracker[final] != '-') return true;
         return false;
     }
 
     char get_captured_piece(std::string move) {
         int initial, final; char promotion;
         std::tie(initial, final, promotion) = convert_to_position(move);
-        for (const auto [piece_type, positions]: piece_tracker) {
-            if (std::find(positions.begin(), positions.end(), final) != positions.end()) {
-                return toupper(piece_type);
-            }
-        }
+        // Old Code
+        // for (const auto [piece_type, positions]: piece_tracker) {
+        //     if (std::find(positions.begin(), positions.end(), final) != positions.end()) {
+        //         return toupper(piece_type);
+        //     }
+        // }
+
+        // Optimized Code
+        if (square_tracker[final] != '-') return toupper(square_tracker[final]);
         return '-';
     }
 
@@ -212,8 +223,8 @@ public:
         std::unordered_map<char, int> material_values{{'P', 1}, {'N', 3}, {'B', 3}, {'R', 5}, {'Q', 9}, {'K', 100}};
         std::sort(promotion_moves.begin(), promotion_moves.end(), [&](const std::string move1, const std::string move2) {
             // Assign priorities to promotion moves based on their strategic potential
-            int promotion_value1 = material_values[move1[move1.size()-1]];
-            int promotion_value2 = material_values[move2[move2.size()-1]];
+            int promotion_value1 = material_values[toupper(move1[move1.size()-1])];
+            int promotion_value2 = material_values[toupper(move2[move2.size()-1])];
             return promotion_value1 > promotion_value2; // Higher value has higher priority
         });
     }
@@ -288,6 +299,8 @@ public:
         for (const std::string& mv : pseudo_legal_moves) {
             Move move_copy(*this);
 
+            if (get_captured_piece(mv) == 'K' || get_captured_piece(mv) == 'k') continue;
+
             // Check if it's a king move and the source and destination are apart by 2
             int src, dest;
             std::string promo;
@@ -319,7 +332,7 @@ public:
         calc_legal_moves.erase(std::unique(calc_legal_moves.begin(), calc_legal_moves.end()), calc_legal_moves.end());
 
         this->legal_moves = ordered_moves(calc_legal_moves);
-        return legal_moves;
+        return this->legal_moves;
     }
 
     std::vector<std::string> ordered_moves(std::vector<std::string> &moves) {
@@ -412,12 +425,11 @@ public:
             played_moves.push_back(move);
 
             for (auto& [piece_type, board] : bitboard) {
-                // if (!threat_check) std::cout << piece_type << " " << board << " " << ((uint64_t)1<<source_square) << std::endl;
-                // if (!threat_check) std::cout << (board & ((uint64_t)1<<source_square)) << std::endl;
                 if (board & ((uint64_t)1 << source_square)) {
                     // Clearing the piece from the source
                     bitboard[piece_type] &= ~((uint64_t)1 << source_square);
                     piece_tracker[piece_type].erase(find(piece_tracker[piece_type].begin(), piece_tracker[piece_type].end(), source_square));
+                    square_tracker[source_square] = '-';
 
                     if (std::toupper(piece_type) == 'P') {
                         halfmove_clock = -1;
@@ -443,6 +455,7 @@ public:
                             // Clearing the captured piece's square from the bitboard
                             bitboard[other_piece_type] &= ~((uint64_t)1 << dest_square);
                             piece_tracker[other_piece_type].erase(find(piece_tracker[other_piece_type].begin(), piece_tracker[other_piece_type].end(), dest_square));
+                            square_tracker[dest_square] = '-';
                             halfmove_clock = -1;
                             break;
                         }
@@ -453,6 +466,7 @@ public:
                         if (dest_square == en_passant_square) {
                             bitboard[piece_type == 'P' ? 'p' : 'P'] &= ~((uint64_t)1 << (en_passant_square + (8 * (piece_type == 'P' ? 1 : -1))));
                             piece_tracker[piece_type == 'P' ? 'p' : 'P'].erase(find(piece_tracker[piece_type == 'P' ? 'p' : 'P'].begin(), piece_tracker[piece_type == 'P' ? 'p' : 'P'].end(), en_passant_square + (8 * (piece_type == 'P' ? 1 : -1))));
+                            square_tracker[en_passant_square + (8 * (piece_type == 'P' ? 1 : -1))] = '-';
                         }
                     }
 
@@ -485,8 +499,10 @@ public:
                             if (bitbrd & ((uint64_t)1 << rook_source_square)) {
                                 bitboard[pc_type] &= ~((uint64_t)1 << rook_source_square);
                                 piece_tracker[pc_type].erase(std::find(piece_tracker[pc_type].begin(), piece_tracker[pc_type].end(), rook_source_square));
+                                square_tracker[rook_source_square] = '-';
                                 bitboard[pc_type] |= ((uint64_t)1 << rook_dest_square);
                                 piece_tracker[pc_type].push_back(rook_dest_square);
+                                square_tracker[rook_dest_square] = pc_type;
                             }
                         } else {
                             if (piece_type == 'K') {
@@ -526,12 +542,14 @@ public:
 
                     if (std::toupper(piece_type) == 'P' && promotion) {
                         // Making a promotion
-                        bitboard[toupper(promotion)] |= ((uint64_t)1 << dest_square);
-                        piece_tracker[std::toupper(promotion)].push_back(dest_square);
+                        bitboard[piece_type == 'P' ? toupper(promotion) : promotion] |= ((uint64_t)1 << dest_square);
+                        piece_tracker[piece_type == 'P' ? toupper(promotion) : promotion].push_back(dest_square);
+                        square_tracker[dest_square] = piece_type == 'P' ? toupper(promotion) : promotion;
                     } else {
                         // Moving the piece to destination
                         bitboard[piece_type] |= ((uint64_t)1 << dest_square);
                         piece_tracker[piece_type].push_back(dest_square);
+                        square_tracker[dest_square] = piece_type;
                     }
 
                     fullmove_number += (player == 'b') ? 1 : 0;
@@ -556,6 +574,7 @@ public:
 
         // Copying member variables
         piece_tracker = copied_self.piece_tracker;
+        square_tracker = copied_self.square_tracker;
         bitboard = copied_self.bitboard;
         player = copied_self.player;
         castling_rights = copied_self.castling_rights;
@@ -569,11 +588,15 @@ public:
     }
 
     bool has_piece(int pos) {
-        for (const auto& pair : this->piece_tracker) {
-            if (std::find(pair.second.begin(), pair.second.end(), pos) != pair.second.end()) {
-                return true;
-            }
-        }
+        // Old code
+        // for (const auto& pair : this->piece_tracker) {
+        //     if (std::find(pair.second.begin(), pair.second.end(), pos) != pair.second.end()) {
+        //         return true;
+        //     }
+        // }
+
+        // Optimized code
+        if (square_tracker[pos] != '-') return true;
         return false;
     }
 
@@ -581,15 +604,18 @@ public:
         char startRange = (color == 'b') ? 'A' : 'a';
         char endRange = (color == 'b') ? 'Z' : 'z';
 
-        for (const auto& pair : piece_tracker) {
-            char piece = pair.first;
-            if (piece >= startRange && piece <= endRange) {
-                if (std::find(pair.second.begin(), pair.second.end(), pos) != pair.second.end()) {
-                    return true;
-                }
-            }
-        }
+        // Old code
+        // for (const auto& pair : piece_tracker) {
+        //     char piece = pair.first;
+        //     if (piece >= startRange && piece <= endRange) {
+        //         if (std::find(pair.second.begin(), pair.second.end(), pos) != pair.second.end()) {
+        //             return true;
+        //         }
+        //     }
+        // }
 
+        // Optimized Code
+        if (square_tracker[pos] != '-' && square_tracker[pos] >= startRange && square_tracker[pos] <= endRange) return true;
         return false;
     }
 

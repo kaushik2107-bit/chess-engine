@@ -13,6 +13,7 @@ public:
     std::string fen;
     std::unordered_map<char, std::vector<int>> piece_tracker;
     std::unordered_map<char, uint64_t> bitboards;
+    std::vector<char> square_tracker;
 
     BitboardGenerator(const std::string& fen) : fen(fen) {
         std::vector<char> pcs = {'Q', 'K', 'R', 'B', 'N', 'P', 'q', 'k', 'r', 'b', 'n', 'p'};
@@ -20,6 +21,8 @@ public:
             piece_tracker[pc] = {};
             bitboards[pc] = 0;
         }
+        square_tracker.resize(64);
+        for (int i=0; i<64; i++) square_tracker[i] = '-';
         generate_bitboards();
     }
 
@@ -45,6 +48,7 @@ public:
                 char piece = c;
 
                 piece_tracker[piece].push_back((7 - rank) * 8 + file);
+                square_tracker[(7-rank)*8 + file] = piece;
                 bitboards[piece] |= bitboard;
 
                 file++;
@@ -56,7 +60,7 @@ public:
         return bitboards;
     }
 
-    std::tuple<std::unordered_map<char, uint64_t>, char, std::string, std::string, std::string, std::string, std::unordered_map<char, std::vector<int>>> get_info() {
+    std::tuple<std::unordered_map<char, uint64_t>, char, std::string, std::string, std::string, std::string, std::unordered_map<char, std::vector<int>>, std::vector<char>> get_info() {
         std::vector<std::string> parts;
         std::stringstream ss(fen);
         std::string token;
@@ -71,8 +75,9 @@ public:
         std::string halfmove_clock = parts[4];
         std::string fullmove_number = parts[5];
         std::unordered_map<char, std::vector<int>> piece_tracker_copy = piece_tracker;
+        std::vector<char> square_tracker_copy = square_tracker;
 
-        return std::make_tuple(bitboard, player, castling_rights, en_passant, halfmove_clock, fullmove_number, piece_tracker_copy);
+        return std::make_tuple(bitboard, player, castling_rights, en_passant, halfmove_clock, fullmove_number, piece_tracker_copy, square_tracker);
     }
 };
 
